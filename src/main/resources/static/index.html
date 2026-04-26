@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>备忘录列表</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 20px auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+    }
+
+    .user-info span {
+      margin-right: 10px;
+    }
+
+    button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    .logout-btn {
+      background-color: #f44336;
+    }
+
+    .logout-btn:hover {
+      background-color: #da190b;
+    }
+
+    .add-btn {
+      background-color: #2196F3;
+    }
+
+    .add-btn:hover {
+      background-color: #0b7dda;
+    }
+
+    .note-list {
+      margin-top: 20px;
+    }
+
+    .note-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 10px;
+      background-color: #f9f9f9;
+    }
+
+    .note-item h3 {
+      margin-bottom: 5px;
+      color: #333;
+    }
+
+    .note-item p {
+      margin-bottom: 10px;
+      color: #666;
+    }
+
+    .note-item .note-meta {
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 10px;
+    }
+
+    .note-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .edit-btn {
+      background-color: #ff9800;
+    }
+
+    .edit-btn:hover {
+      background-color: #e68a00;
+    }
+
+    .delete-btn {
+      background-color: #f44336;
+    }
+
+    .delete-btn:hover {
+      background-color: #da190b;
+    }
+
+    .empty-message {
+      text-align: center;
+      color: #999;
+      padding: 40px 0;
+    }
+
+    /* 弹窗样式 */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+
+    .modal-content {
+      background-color: white;
+      margin: 10% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 500px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .close {
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #666;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+
+    textarea {
+      height: 100px;
+      resize: vertical;
+    }
+
+    .error-message {
+      color: red;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>备忘录列表</h1>
+    <div class="user-info">
+      <span id="username">用户</span>
+      <button class="add-btn" onclick="openAddModal()">新增备忘录</button>
+      <button class="logout-btn" onclick="logout()">退出</button>
+    </div>
+  </div>
+
+  <div class="note-list" id="noteList">
+    <!-- 备忘录列表将通过JS动态生成 -->
+  </div>
+</div>
+
+<!-- 新增/编辑备忘录弹窗 -->
+<div id="noteModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalTitle">新增备忘录</h2>
+      <span class="close" onclick="closeModal()">&times;</span>
+    </div>
+    <form id="noteForm">
+      <input type="hidden" id="noteId">
+      <div class="form-group">
+        <label for="noteTitle">标题</label>
+        <input type="text" id="noteTitle" placeholder="请输入标题">
+      </div>
+      <div class="form-group">
+        <label for="noteContent">内容</label>
+        <textarea id="noteContent" placeholder="请输入内容"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="noteCategory">分类</label>
+        <input type="text" id="noteCategory" placeholder="请输入分类">
+      </div>
+      <button type="button" onclick="saveNote()">保存</button>
+      <div id="modalMessage" class="error-message"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+  let currentUser = null;
+
+  // 页面加载时执行
+  window.onload = function() {
+    // 获取本地存储的用户信息
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      currentUser = JSON.parse(userStr);
+      document.getElementById('username').textContent = currentUser.username;
+      loadNotes();
+    } else {
+      // 未登录，跳转到登录页
+      window.location.href = 'login.html';
+    }
+  };
+
+  // 加载备忘录列表
+  function loadNotes() {
+    if (!currentUser) return;
+
+    fetch(`http://localhost:8081/api/note/list/${currentUser.id}`)
+            .then(response => response.json())
+            .then(data => {
+              const noteList = document.getElementById('noteList');
+              if (data.success && data.data.length > 0) {
+                noteList.innerHTML = '';
+                data.data.forEach(note => {
+                  const noteItem = document.createElement('div');
+                  noteItem.className = 'note-item';
+                  noteItem.innerHTML = `
+                                <h3>${note.title}</h3>
+                                <p>${note.content}</p>
+                                <div class="note-meta">
+                                    分类：${note.category || '未分类'} | 创建时间：${formatDate(note.createTime)}
+                                </div>
+                                <div class="note-actions">
+                                    <button class="edit-btn" onclick="openEditModal(${note.id}, '${note.title}', '${note.content}', '${note.category}')">编辑</button>
+                                    <button class="delete-btn" onclick="deleteNote(${note.id})">删除</button>
+                                </div>
+                            `;
+                  noteList.appendChild(noteItem);
+                });
+              } else {
+                noteList.innerHTML = '<div class="empty-message">暂无备忘录，点击"新增备忘录"创建</div>';
+              }
+            })
+            .catch(error => {
+              console.error('加载备忘录失败:', error);
+            });
+  }
+
+  // 打开新增备忘录弹窗
+  function openAddModal() {
+    document.getElementById('noteId').value = '';
+    document.getElementById('noteTitle').value = '';
+    document.getElementById('noteContent').value = '';
+    document.getElementById('noteCategory').value = '';
+    document.getElementById('modalTitle').textContent = '新增备忘录';
+    document.getElementById('modalMessage').textContent = '';
+    document.getElementById('noteModal').style.display = 'block';
+  }
+
+  // 打开编辑备忘录弹窗
+  function openEditModal(id, title, content, category) {
+    document.getElementById('noteId').value = id;
+    document.getElementById('noteTitle').value = title;
+    document.getElementById('noteContent').value = content;
+    document.getElementById('noteCategory').value = category || '';
+    document.getElementById('modalTitle').textContent = '编辑备忘录';
+    document.getElementById('modalMessage').textContent = '';
+    document.getElementById('noteModal').style.display = 'block';
+  }
+
+  // 关闭弹窗
+  function closeModal() {
+    document.getElementById('noteModal').style.display = 'none';
+  }
+
+  // 保存备忘录
+  function saveNote() {
+    const id = document.getElementById('noteId').value;
+    const title = document.getElementById('noteTitle').value;
+    const content = document.getElementById('noteContent').value;
+    const category = document.getElementById('noteCategory').value;
+    const message = document.getElementById('modalMessage');
+
+    if (!title) {
+      message.textContent = '标题不能为空';
+      return;
+    }
+
+    if (!currentUser || !currentUser.id) {
+      message.textContent = '用户未登录，请重新登录';
+      setTimeout(() => {
+        window.location.href = 'login.html';
+      }, 1000);
+      return;
+    }
+
+    const noteData = {
+      title,
+      content,
+      category,
+      userId: currentUser.id
+    };
+
+    if (id) {
+      noteData.id = id;
+    }
+
+    const url = id ? 'http://localhost:8081/api/note/update' : 'http://localhost:8081/api/note/add';
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(noteData)
+    })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                closeModal();
+                loadNotes();
+              } else {
+                message.textContent = data.message;
+              }
+            })
+            .catch(error => {
+              message.textContent = '保存失败：' + error.message;
+            });
+  }
+
+  // 删除备忘录
+  function deleteNote(id) {
+    if (confirm('确定要删除这个备忘录吗？')) {
+      fetch(`http://localhost:8081/api/note/delete/${id}`, {
+        method: 'DELETE'
+      })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  loadNotes();
+                } else {
+                  alert('删除失败：' + data.message);
+                }
+              })
+              .catch(error => {
+                alert('删除失败：' + error.message);
+              });
+    }
+  }
+
+  // 退出登录
+  function logout() {
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  }
+
+  // 格式化日期
+  function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('zh-CN');
+  }
+
+  // 点击弹窗外部关闭
+  window.onclick = function(event) {
+    const modal = document.getElementById('noteModal');
+    if (event.target == modal) {
+      closeModal();
+    }
+  };
+</script>
+</body>
+</html>
